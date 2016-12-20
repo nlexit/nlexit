@@ -1,0 +1,68 @@
+#!/bin/sh
+
+# PROVIDE: hempcoin
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+
+#
+# Add the following lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# hempcoin_enable (bool): Set to NO by default. Set this variable to YES if you want to enable hempcoin service.
+# hempcoin_config (path): Set to /usr/local/etc/hempcoin.conf by default.
+# hempcoin_user:  The user account hempcoin daemon runs as. It uses 'root' user by default.
+# hempcoin_group: The group account hempcoin daemon runs as. It uses 'wheel' group by default.
+# hempcoin_datadir (str): Default to "/var/db/hempcoin". Base data directory.
+
+. /etc/rc.subr
+
+name=hempcoin
+rcvar=hempcoin_enable
+
+: ${hempcoin_enable:=NO}
+: ${hempcoin_config=/usr/local/etc/hempcoin.conf}
+: ${hempcoin_datadir=/var/db/hempcoin}
+: ${hempcoin_user="root"}
+: ${hempcoin_group="wheel"}
+
+required_files=${hempcoin_config}
+command=/usr/local/bin/hempcoind
+hempcoin_chdir=${hempcoin_datadir}
+pidfile="${hempcoin_datadir}/hempcoind.pid"
+stop_cmd=hempcoin_stop
+command_args="-conf=${hempcoin_config} -datadir=${hempcoin_datadir} -noupnp -daemon -pid=${pidfile}"
+start_precmd="${name}_prestart"
+
+hempcoin_create_datadir()
+{
+	echo "Creating data directory"
+	eval mkdir -p ${hempcoin_datadir}
+	[ $? -eq 0 ] && chown -R ${hempcoin_user}:${hempcoin_group} ${hempcoin_datadir}
+}
+
+hempcoin_prestart()
+{
+	if [ ! -d "${hempcoin_datadir}/." ]; then
+		hempcoin_create_datadir || return 1
+	fi
+}
+
+hempcoin_requirepidfile()
+{
+	if [ ! "0`check_pidfile ${pidfile} ${command}`" -gt 1 ]; then
+		echo "${name} not running? (check $pidfile)."
+		exit 1
+	fi
+}
+
+hempcoin_stop()
+{
+    hempcoin_requirepidfile
+
+	echo "Stopping ${name}."
+	eval ${command} -conf=${hempcoin_config} -datadir=${hempcoin_datadir} stop
+	wait_for_pids ${rc_pid}
+}
+
+load_rc_config $name
+run_rc_command "$1"
